@@ -1,0 +1,20 @@
+# Web framework for authentication and routing
+Flask==2.3.3
+
+# Google API libraries for integration
+google-api-python-client
+google-auth-oauthlib
+
+# PostgreSQL database driver
+psycopg2-binary
+
+# AI and Retrieval-Augmented Generation (RAG) libraries
+langchain
+torch
+sentence-transformers
+faiss-cpu
+transformers
+langchain-community
+
+# Environment variable management
+python-dotenv

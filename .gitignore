@@ -1,0 +1,13 @@
+# Python virtual environment
+.venv/
+venv/
+__pycache__/
+
+# Secrets and configuration files
+.env
+client_secret.json
+
+# IDE and OS files
+.idea/
+.vscode/
+.DS_Store
