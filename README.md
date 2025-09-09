@@ -2,10 +2,17 @@
 
 An automated email agent that uses AI to categorize, process, and respond to customer support emails. The agent can answer questions using a Retrieval-Augmented Generation (RAG) system, handle stateful refund requests, and classify other emails for manual review.
 
+## Motivation
+
+In many businesses, customer support teams are overwhelmed by a high volume of repetitive emails. This project aims to solve that problem by creating an intelligent agent that can:
+- Instantly answer common questions using a knowledge base.
+- Handle the initial steps of a refund process automatically.
+- Filter out noise, allowing human agents to focus on complex, high-value customer interactions.
+
 ## Features
 
 -   **Automatic Email Categorization**: Classifies incoming emails into `Question`, `Refund`, or `Other`.
--   **RAG-Powered Q&A**: Answers user questions by retrieving relevant information from a local knowledge base (`faq.txt`).
+-   **RAG-Powered Q&A**: Answers user questions by retrieving relevant information from a local knowledge base.
 -   **Stateful Refund Processing**: Manages refund requests by checking a database, asking for missing information, and logging invalid attempts.
 -   **Secure Gmail Integration**: Connects to Gmail accounts using OAuth 2.0 and stores credentials securely using encryption.
 -   **Database Integration**: Uses PostgreSQL to manage orders, unhandled emails, and user credentials.
@@ -23,7 +30,7 @@ An automated email agent that uses AI to categorize, process, and respond to cus
 
 ## Architectural Overview
 
-The system is composed of a web application for account management and a background listener for email processing.
+The system consists of a web application for account management and a background listener for email processing.
 
 ```mermaid
 graph TD
@@ -59,17 +66,6 @@ graph TD
     end
 ```
 
-## Project Structure
-
--   `run_listener.py`: The main entry point for the background worker. Manages the main loop for fetching and processing emails.
--   `processing_service.py`: The core logic pipeline. Orchestrates the categorization and handling of emails.
--   `llm_service.py`: Contains all AI-related logic, including email categorization and the RAG implementation.
--   `gmail_service.py`: A wrapper for all interactions with the Google Gmail API.
--   `database.py`: Manages the database connection and schema setup.
--   `security.py`: Handles the encryption and decryption of user credentials.
--   `app.py`: A simple Flask web app used only for the OAuth 2.0 flow.
--   `Dockerfile` & `docker-compose.yml`: Defines the containerized environment.
-
 ---
 
 ## Getting Started
@@ -92,59 +88,105 @@ graph TD
     -   Add `http://localhost:5000/oauth2callback` and `http://127.0.0.1:5000/oauth2callback` as authorized redirect URIs.
     -   **Download the JSON** and save it as `client_secret.json` in the project's root directory.
 
-### 2. Configuration
+### 2. Local Project Setup & Configuration
 
 1.  **Clone the repository**:
     ```bash
     git clone https://github.com/ioa2205/email-support-agent.git
     cd email-support-agent
     ```
-2.  **Create a `.env` file**.
-3.  **Generate a secret key** for encryption by running this command and copying the output:
+2.  **Create a `.env` file**. This file will hold all your secrets.
+3.  **Generate a secret key** for encryption by running this command in your terminal and copying the output:
     ```bash
     python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     ```
-4.  **Populate the `.env` file**. Use the `.env.example` as a template.
+4.  **Populate the `.env` file**. Use the `.env.example` as a template. The `DB_HOST` value is important and depends on how you run the application (see next section).
 
-### 3. Running the Application (Recommended: Docker Compose)
+    **.env.example:**
+    ```
 
-1.  **Build and Start the Services**: This will start the database and the email listener in the background.
+
+    # PostgreSQL Database Configuration
+    DB_NAME=email_agent
+    DB_USER=postgres
+    DB_PASSWORD=mysecretpassword
+    DB_HOST=localhost
+    DB_PORT=5432
+
+    # Google API Configuration
+    GOOGLE_CLIENT_ID="client_id_here.apps.googleusercontent.com" # Replace with your actual client ID
+    GOOGLE_CLIENT_SECRET="client_secret_here" # Replace with your actual client secret
+
+
+    ENCRYPTION_KEY="your_generated_encryption_key_here" # Replace with your actual encryption key
+
+---
+
+## Running the Application
+
+You have two options for running the application.
+
+### Option 1: Using Docker Compose (Recommended)
+
+This method containerizes both the database and the Python application. It is the easiest way to run the entire system with a single command.
+
+1.  **Configure `.env`**: Make sure `DB_HOST` is set to `db` in your `.env` file. Docker Compose will automatically map this hostname to the database container.
+2.  **Build and Start the Services**: This command will build the Python image and start both the application and database containers in the background.
     ```bash
     docker-compose up --build -d
     ```
-2.  **Initialize the Database**: The first time you run the application, create the database tables:
+3.  **Initialize the Database**: The first time you run the application, create the database tables:
     ```bash
     docker-compose exec app python database.py
     ```
-3.  **Connect a Gmail Account**:
-    -   Run the local Flask web app to handle the browser-based login.
-    -   In a terminal (with your `.venv` activated), run:
-        ```bash
-        pip install -r requirements.txt
-        python app.py
-        ```
-    -   Navigate to `http://127.0.0.1:5000` in your browser and connect your account.
-    -   Once connected, you can stop the `app.py` server (`Ctrl+C`).
-
-4.  **View Logs**: To see the live activity of the email agent, stream the logs:
+4.  **Connect a Gmail Account**: See the "Connecting Your Account" section below.
+5.  **View Logs**: To see the live activity of the email agent, stream the logs:
     ```bash
     docker-compose logs -f app
     ```
 
-### 4. How to Test
+### Option 2: Running Locally with Docker for Database
 
-Once the listener is running, send emails to the connected Gmail account from another address:
--   **Question**: Subject: "Help", Body: "How do I reset my password?"
--   **Refund (Valid)**: Subject: "Refund", Body: "My order ID is ORD12345."
--   **Refund (Invalid)**: Subject: "Money Back", Body: "The order ID is ORD99999."
+This method is ideal for development, as it allows you to run your Python code directly on your machine for faster testing, while still using Docker for the database.
+
+1.  **Start the Database Container**: Open a terminal and run this command. Leave it running.
+    ```bash
+    docker run --rm --name pg-email-agent -e POSTGRES_PASSWORD=mysecretpassword -e POSTGRES_DB=email_agent -p 5432:5432 postgres
+    ```
+2.  **Configure `.env`**: Make sure `DB_HOST` is set to `localhost` in your `.env` file to connect to the database container.
+3.  **Setup Local Environment**: In a new terminal, activate your virtual environment and install dependencies.
+    ```bash
+    # Create and activate virtual environment
+    python -m venv .venv
+    .venv\Scripts\Activate.ps1
+
+    # Install packages
+    pip install -r requirements.txt
+    ```
+4.  **Initialize the Database**:
+    ```bash
+    python database.py
+    ```
+5.  **Connect a Gmail Account**: See the "Connecting Your Account" section below.
+6.  **Run the Email Agent**: Once an account is connected, start the main listener script.
+    ```bash
+    python run_listener.py
+    ```
+
+### Connecting Your Account (Required for Both Options)
+
+The email listener needs credentials to work.
+1.  **Run the Flask Web App**: Open a new terminal (with your `.venv` activated) and run:
+    ```bash
+    python app.py
+    ```
+2.  **Authenticate in Browser**: Navigate to `http://127.0.0.1:5000` in your browser and connect your Gmail account.
+3.  **Stop the Web App**: Once connected, you can stop the `app.py` server (`Ctrl+C`). The credentials are now saved in the database for the listener to use.
 
 ---
 
 ## Future Improvements
 
-This project is a robust prototype. To make it fully production-ready, the following steps could be taken:
-
--   **Scalability**: Replace the simple `time.sleep` loop in `run_listener.py` with a distributed task queue like **Celery** and **Redis** to process emails for thousands of accounts in parallel.
--   **Automated Testing**: Implement a test suite with `pytest` to include unit tests for business logic and integration tests for the email processing pipeline.
--   **Enhanced AI**: Upgrade the RAG system to use a more powerful generative model (like a fine-tuned T5 or a commercial LLM API) for more fluid and comprehensive answers.
-.
+-   **Scalability**: Replace the simple `time.sleep` loop with a distributed task queue like **Celery** to process emails for thousands of accounts in parallel.
+-   **Automated Testing**: Implement a `pytest` suite with unit and integration tests.
+-   **Enhanced AI**: Upgrade the RAG system to use a more powerful generative model for more fluid answers.
