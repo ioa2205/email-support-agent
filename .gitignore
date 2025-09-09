@@ -11,3 +11,6 @@ client_secret.json
 .idea/
 .vscode/
 .DS_Store
+
+# Logs
+*.log

@@ -2,10 +2,11 @@ import re
 import llm_service
 import gmail_service
 from database import get_db_connection
+import logging
 
 def handle_question(service, email):
     """Handles emails categorized as 'Question' using RAG."""
-    print(f"Handling QUESTION from {email['from']}")
+    logging.info(f"Handling QUESTION from {email['from']}")
     question = gmail_service.clean_email_body(email['body'])
     answer = llm_service.get_rag_answer(question)
     
@@ -14,7 +15,7 @@ def handle_question(service, email):
         gmail_service.send_reply(service, email['from'], f"Re: {email['subject']}", reply_body, email['threadId'])
     else:
         # Save as unhandled with high importance
-        print("Could not find an answer. Saving to unhandled.")
+        logging.warning(f"Could not find an answer for email from {email['from']}. Saving to unhandled.")
         conn = get_db_connection()
         cur = conn.cursor()
         cur.execute(
@@ -30,11 +31,11 @@ def handle_question(service, email):
 
 def handle_refund(service, email):
     """Handles emails categorized as 'Refund' with database logic."""
-    print(f"Handling REFUND from {email['from']}")
-    customer_email = re.search(r'<(.+?)>', email['from']).group(1) # Extract email from "Name <email@addr.com>"
+    logging.info(f"Handling REFUND from {email['from']}")
+    customer_email_match = re.search(r'<(.+?)>', email['from'])
+    customer_email = customer_email_match.group(1) if customer_email_match else email['from']
     body = gmail_service.clean_email_body(email['body'])
     
-    # Try to find an order ID
     match = re.search(r'order id\s*[:\s-]*([A-Z0-9]+)', body, re.IGNORECASE)
     if not match:
         match = re.search(r'\b(ORD\d+)\b', body, re.IGNORECASE)
@@ -51,14 +52,11 @@ def handle_refund(service, email):
         order = cur.fetchone()
 
         if order:
-            # Order found
             cur.execute("UPDATE orders SET status = 'refund_requested' WHERE order_id = %s", (order_id,))
             conn.commit()
             reply_body = f"Hello,\n\nYour refund request for order {order_id} has been received. It will be processed within 3 business days.\n\nThank you,\nSupport Agent"
             gmail_service.send_reply(service, email['from'], f"Re: {email['subject']}", reply_body, email['threadId'])
         else:
-            # Order not found
-            # Check if this is a reply to our "invalid ID" message
             if email.get('in_reply_to'):
                 cur.execute(
                     """
@@ -68,8 +66,8 @@ def handle_refund(service, email):
                     (customer_email, order_id, email['body'])
                 )
                 conn.commit()
-                # Do not reply again to avoid loops. A human should check this table.
-                print(f"Logged repeated invalid order ID attempt for {order_id}.")
+                # Use logging.warning for events that might need human review
+                logging.warning(f"Logged repeated invalid order ID attempt from {customer_email} for ID '{order_id}'.") # <-- CORRECTED
             else:
                 reply_body = f"Hello,\n\nWe could not find an order with the ID '{order_id}'. Please double-check the ID and reply to this email.\n\nThank you,\nSupport Agent"
                 gmail_service.send_reply(service, email['from'], f"Re: {email['subject']}", reply_body, email['threadId'])
@@ -77,10 +75,9 @@ def handle_refund(service, email):
     cur.close()
     conn.close()
 
-
 def handle_other(service, email):
     """Handles all other emails by assessing importance and saving."""
-    print(f"Handling OTHER from {email['from']}")
+    logging.info(f"Handling OTHER from {email['from']}") # <-- CORRECTED
     importance = llm_service.assess_importance(email['body'])
     conn = get_db_connection()
     cur = conn.cursor()
@@ -99,15 +96,15 @@ def process_email(account, email_summary):
     """Main pipeline for processing a single email."""
     service = gmail_service.get_gmail_service(account)
     email_details = gmail_service.get_email_details(service, email_summary['id'])
-
     clean_body = gmail_service.clean_email_body(email_details['body'])
     category = llm_service.categorize_email(clean_body)
-    
-    print(f"\n--- New Email ---")
-    print(f"From: {email_details['from']}")
-    print(f"Subject: {email_details['subject']}")
-    print(f"Category: {category}")
-    print("-------------------")
+
+    # Logging each piece of info on a new line makes the log file easier to read
+    logging.info("--- New Email Received ---")
+    logging.info(f"  From: {email_details['from']}")
+    logging.info(f"  Subject: {email_details['subject']}")
+    logging.info(f"  Category: {category}")
+    logging.info("--------------------------")
 
     if category == "Question":
         handle_question(service, email_details)
@@ -116,5 +113,4 @@ def process_email(account, email_summary):
     else: # Other
         handle_other(service, email_details)
         
-    # Mark email as read after processing
     gmail_service.mark_as_read(service, email_details['id'])

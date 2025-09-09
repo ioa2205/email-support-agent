@@ -1,9 +1,7 @@
 import os
-import json
 from flask import Flask, redirect, request, session, url_for
 from google_auth_oauthlib.flow import Flow
 from database import get_db_connection
-import psycopg2.extras
 
 app = Flask(__name__)
 # In production, use a more secure secret key and manage it properly

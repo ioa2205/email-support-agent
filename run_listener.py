@@ -1,3 +1,4 @@
+import logging
 import time
 import json
 from database import get_db_connection
@@ -9,8 +10,16 @@ import psycopg2.extras
 
 def main():
     """Main loop to fetch and process emails."""
-    print("Starting email listener...")
-    
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler("agent.log"), # Log to a file
+            logging.StreamHandler()          # Also log to the console
+        ]
+    )
+    logging.info("Starting email listener...")
+
     # Load Google Client ID and Secret for token refreshing
     with open('client_secret.json', 'r') as f:
         secrets = json.load(f)['web']
