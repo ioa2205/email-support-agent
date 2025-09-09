@@ -16,6 +16,7 @@ An automated email agent that uses AI to categorize, process, and respond to cus
 -   **Backend**: Python
 -   **Web Framework**: Flask
 -   **Database**: PostgreSQL
+-   **Containerization**: Docker, Docker Compose
 -   **AI / RAG**: LangChain, Hugging Face Transformers, Sentence-Transformers, FAISS
 -   **Email API**: Google Gmail API
 -   **Containerization**: Docker
@@ -69,15 +70,17 @@ graph TD
 -   Docker and Docker Desktop
 -   A Google Cloud Platform account
 
-### Step 1: Google Cloud & Gmail API Setup
+### 1. Google Cloud & Gmail API Setup
+
+Before running the application, you need to configure your Google Cloud project and get credentials.
 
 1.  **Create a Google Cloud Project**: Go to the [Google Cloud Console](https://console.cloud.google.com/) and create a new project.
 2.  **Enable the Gmail API**: In your project, go to "APIs & Services" > "Library", search for "Gmail API", and enable it.
 3.  **Configure OAuth Consent Screen**:
     -   Go to "APIs & Services" > "OAuth consent screen".
     -   Choose **External** and fill in the required app details.
-    -   **Add Scopes**: Add the `.../auth/gmail.readonly`, `.../auth/gmail.modify`, `.../auth/gmail.send`, `.../auth/userinfo.email`, and `openid` scopes.
-    -   **Add Test Users**: Add the Google account(s) you intend to connect to the agent. **This is critical for the login to work in testing mode.**
+    -   **Add Scopes**: Add `.../auth/gmail.readonly`, `.../auth/gmail.modify`, `.../auth/gmail.send`, `.../auth/userinfo.email`, and `openid`.
+    -   **Add Test Users**: Add the Google account(s) you intend to connect. **This is critical for the login to work in testing mode.**
 4.  **Create Credentials**:
     -   Go to "APIs & Services" > "Credentials".
     -   Click "+ Create Credentials" > "OAuth client ID".
@@ -85,67 +88,77 @@ graph TD
     -   Add `http://localhost:5000/oauth2callback` and `http://127.0.0.1:5000/oauth2callback` as authorized redirect URIs.
     -   Click **Download JSON** and save the file as `client_secret.json` in the project's root directory.
 
-### Step 2: Local Project Setup
+### 2. Configuration
 
-1.  **Clone the repository**:
-    ```bash
-    git clone https://github.com/ioa2205/email-support-agent.git
-    cd email-support-agent
-    ```
-2.  **Create a virtual environment and activate it**:
-    ```bash
-    python -m venv .venv
-    # Windows
-    .venv\Scripts\Activate.ps1
-    # macOS / Linux
-    source .venv/bin/activate
-    ```
-3.  **Install dependencies**:
-    ```bash
-    pip install -r requirements.txt
-    ```
+The application uses environment variables for configuration.
 
-### Step 3: Database Setup
-
-1.  **Start PostgreSQL using Docker**: Make sure Docker Desktop is running. This command will start a database that is ready to use.
+1.  **Create a `.env` file** in the project root.
+2.  **Generate a secret key** for encrypting credentials. Run this command in your terminal and copy the output:
     ```bash
-    docker run --rm -d --name pg-email-agent -e POSTGRES_PASSWORD=mysecretpassword -e POSTGRES_DB=email_agent -p 5432:5432 postgres
+    python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
     ```
-2.  **Create the database tables**: Run the setup script to initialize the schema and add sample orders.
-    ```bash
-    python database.py
+3.  **Populate the `.env` file** with your database settings and the keys you've generated.
+
+    **.env.example:**
+    ```
+    # PostgreSQL Database Configuration
+    DB_NAME=email_agent
+    DB_USER=postgres
+    DB_PASSWORD=mysecretpassword
+    DB_HOST=localhost
+    DB_PORT=5432
+
+    # Application Encryption Key
+    ENCRYPTION_KEY="your-generated-encryption-key-goes-here"
     ```
 
-### Step 4: Populate Knowledge Base
+### 3. Running the Application
 
-Edit the `knowledge_base/faq.txt` file to include the questions and answers you want the RAG system to use.
+This project is fully containerized with Docker Compose for easy setup.
 
-## Usage
+1.  **Build and Start the Services**: This will build the Python image and start both the application and database containers in the background.
+    ```bash
+    docker-compose up --build -d
+    ```
+2.  **Initialize the Database**: The first time you run the application, you need to create the database tables. This command runs `database.py` inside the running `app` container.
+    ```bash
+    docker-compose exec app python database.py
+    ```
+3.  **Connect a Gmail Account**:
+    -   The application listener is now running in the background. To connect an account, run the Flask web app locally.
+    -   Open a **new terminal** and run:
+        ```bash
+        python app.py
+        ```
+    -   Navigate to `http://127.0.0.1:5000` in your browser and connect your account.
+    -   Once connected, you can stop the `app.py` server (`Ctrl+C`).
 
-The application has two parts that you run separately.
+4.  **View Logs**: To see the live activity of the email agent, you can stream the logs from the running container:
+    ```bash
+    docker-compose logs -f app
+    ```
 
-### 1. Manage Accounts (Connect/Disconnect)
+---
 
-This starts the web server for managing your connected accounts.
-```bash
-python app.py
-```
-Open your browser and navigate to `http://127.0.0.1:5000`. From here, you can connect new Gmail accounts or disconnect existing ones. You only need to run this when managing accounts.
+## Project Structure
 
-### 2. Run the Email Agent
+The project is organized into several modules with a clear separation of concerns:
 
-This is the main worker process that continuously listens for and processes emails.
-```bash
-python run_listener.py
-```
-Leave this terminal running. The agent will check for new emails every 60 seconds. The first time it runs, it will download the necessary AI models, which may take a few minutes.
+-   `run_listener.py`: The main entry point for the background worker. Manages the main loop for fetching and processing emails.
+-   `processing_service.py`: The core logic pipeline. Orchestrates the categorization and handling of emails.
+-   `llm_service.py`: Contains all AI-related logic, including email categorization and the RAG implementation for answering questions.
+-   `gmail_service.py`: A wrapper for all interactions with the Google Gmail API.
+-   `database.py`: Manages the database connection and schema setup.
+-   `security.py`: Handles the encryption and decryption of user credentials.
+-   `app.py`: A simple Flask web app used only for the OAuth 2.0 flow to connect and disconnect accounts.
+-   `Dockerfile` & `docker-compose.yml`: Defines the containerized environment for the application.
 
-## How to Test
+---
 
-Once the listener is running, send emails to the connected Gmail account from another address:
+## Future Improvements
 
--   **Question**: Subject: "Help", Body: "How do I reset my password?"
--   **Refund (Valid)**: Subject: "Refund", Body: "My order ID is ORD1234G." (Use an ID from `database.py`)
--   **Refund (Invalid)**: Subject: "Money Back", Body: "The order ID is ORD99999."
+This project is a robust prototype. To make it fully production-ready, the following steps could be taken:
 
-Watch the console output of `run_listener.py` to see the agent in action. You will receive automated replies.
+-   **Scalability**: Replace the simple `time.sleep` loop in `run_listener.py` with a distributed task queue like **Celery** and **Redis**. This would allow the system to process emails for thousands of accounts in parallel.
+-   **Automated Testing**: Implement a test suite with `pytest` to include unit tests for business logic (e.g., refund rules) and integration tests for the email processing pipeline.
+-   **Enhanced AI**: The current RAG system uses a simple QA model. This could be upgraded to use a more powerful generative model (like a fine-tuned T5 or a commercial LLM API) for more fluid and comprehensive answers.
