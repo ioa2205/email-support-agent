@@ -91,9 +91,8 @@ def handle_other(service, email):
     cur.close()
     conn.close()
 
-def process_email(account, email_summary):
+def process_email(service, account, email_summary):
     """Main pipeline for processing a single email."""
-    service = gmail_service.get_gmail_service(account)
     email_details = gmail_service.get_email_details(service, email_summary['id'])
     clean_body = gmail_service.clean_email_body(email_details['body'])
     category = llm_service.categorize_email(clean_body)

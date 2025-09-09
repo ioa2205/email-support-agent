@@ -76,11 +76,11 @@ def get_rag_answer(question: str) -> Optional[str]:
     if not docs:
         return None # No relevant information found
         
-    # 2. Use a simple QA model to extract the answer from the context
-    # In a more advanced setup, you'd use a generative LLM like GPT or T5 here.
     context = " ".join([doc.page_content for doc in docs])
     
-    result = _llm_qa(question=question, context=context)
+    truncated_question = question[:1000]
+    
+    result = _llm_qa(question=truncated_question, context=context) # Use the truncated question
 
     # Check if the answer is confident enough
     if result['score'] > 0.3: # Confidence threshold

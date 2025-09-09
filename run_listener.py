@@ -60,24 +60,35 @@ def main():
                     
                     creds = Credentials.from_authorized_user_info(creds_info)
                     
-                    # Refresh if expired and update DB
+                    # In run_listener.py, inside the main() -> while -> for -> try block
+
                     if creds.expired and creds.refresh_token:
                         from google.auth.transport.requests import Request
                         logging.info("Refreshing token...")
                         creds.refresh(Request())
-                        # Save the updated credentials back to the database
-
-                        encrypted_new_token = encrypt_token_to_str(creds.token)
+                        
+                        # --- THIS IS THE DEFINITIVE FIX ---
+                        # After refreshing, the 'creds' object might have a new refresh token.
+                        # We must save BOTH the new access token AND the new refresh token.
+                        
+                        encrypted_new_access_token = encrypt_token_to_str(creds.token)
+                        # The refresh token might be None if one wasn't issued, so we keep the old one as a fallback.
+                        new_refresh_token = creds.refresh_token or decrypted_refresh_token
+                        encrypted_new_refresh_token = encrypt_token_to_str(new_refresh_token)
 
                         cur.execute(
                             """
-                            UPDATE connected_accounts SET access_token = %s, token_expiry = %s
+                            UPDATE connected_accounts 
+                            SET access_token = %s, refresh_token = %s, token_expiry = %s
                             WHERE user_email = %s
                             """,
-                            (encrypted_new_token, creds.expiry, account['user_email'])
+                            (encrypted_new_access_token, encrypted_new_refresh_token, creds.expiry, account['user_email'])
                         )
                         conn.commit()
-                        logging.info("Token refreshed and saved.")
+                        logging.info("Token refreshed and saved securely.")
+                        
+                        # Update the local decrypted variable so the rest of the script uses the new token
+                        decrypted_refresh_token = new_refresh_token
 
 
                     service = gmail_service.build('gmail', 'v1', credentials=creds)
@@ -89,7 +100,7 @@ def main():
                         logging.info(f"Found {len(unread_messages)} new email(s).")
                         for message_summary in unread_messages:
                             # Pass a dictionary-like object for the account
-                            processing_service.process_email(dict(account), message_summary)
+                            processing_service.process_email(service, dict(account), message_summary)
 
                 except Exception as e:
                     logging.error(f"An error occurred while processing account {account['user_email']}:")

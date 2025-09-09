@@ -13,26 +13,6 @@ SCOPES = [
     'https://www.googleapis.com/auth/gmail.send'
 ]
 
-def get_credentials(account):
-    """Refreshes credentials if necessary."""
-    creds = Credentials(
-        token=account['access_token'],
-        refresh_token=account['refresh_token'],
-        token_uri='https://oauth2.googleapis.com/token',
-        client_id=os.environ.get('GOOGLE_CLIENT_ID'), # You would get this from client_secret.json
-        client_secret=os.environ.get('GOOGLE_CLIENT_SECRET')
-    )
-    if creds and creds.expired and creds.refresh_token:
-        creds.refresh(Request())
-        # TODO: Here you should update the new credentials in your database
-    return creds
-
-def get_gmail_service(account):
-    """Returns an authorized Gmail service instance."""
-    creds = get_credentials(account)
-    service = build('gmail', 'v1', credentials=creds)
-    return service
-
 def fetch_unread_emails(service):
     """Fetches a list of unread email messages."""
     results = service.users().messages().list(userId='me', q='is:unread').execute()
@@ -40,33 +20,49 @@ def fetch_unread_emails(service):
     return messages
 
 def get_email_details(service, message_id):
-    """Gets the full details of a single email."""
+    """
+    Gets the full details of a single email, with robust body parsing for
+    multipart messages.
+    """
     msg = service.users().messages().get(userId='me', id=message_id, format='full').execute()
     
     payload = msg['payload']
-    headers = payload['headers']
+    headers = payload.get('headers', [])
     
     email_data = {
         'id': msg['id'],
         'threadId': msg['threadId'],
-        'snippet': msg['snippet'],
-        'from': next(h['value'] for h in headers if h['name'] == 'From'),
-        'to': next(h['value'] for h in headers if h['name'] == 'To'),
-        'subject': next(h['value'] for h in headers if h['name'] == 'Subject'),
-        'in_reply_to': next((h['value'] for h in headers if h['name'] == 'In-Reply-To'), None)
+        'snippet': msg.get('snippet'),
+        'from': next((h['value'] for h in headers if h['name'].lower() == 'from'), 'N/A'),
+        'to': next((h['value'] for h in headers if h['name'].lower() == 'to'), 'N/A'),
+        'subject': next((h['value'] for h in headers if h['name'].lower() == 'subject'), 'N/A'),
+        'in_reply_to': next((h['value'] for h in headers if h['name'].lower() == 'in-reply-to'), None),
+        'body': ''
     }
 
-    # Decode the body
+    def find_body_parts(parts):
+        """Recursively search for the email body in multipart messages."""
+        body = ''
+        for part in parts:
+            if part.get('body') and part['body'].get('data'):
+                # Prioritize plain text over HTML
+                if part['mimeType'] == 'text/plain':
+                    data = part['body']['data']
+                    return base64.urlsafe_b64decode(data).decode('utf-8')
+                elif part['mimeType'] == 'text/html':
+                    data = part['body']['data']
+                    body = base64.urlsafe_b64decode(data).decode('utf-8')
+
+            if 'parts' in part:
+                sub_body = find_body_parts(part['parts'])
+                if sub_body:
+                    return sub_body
+        return body
     if 'parts' in payload:
-        part = payload['parts'][0]
-        if part['mimeType'] == 'text/plain':
-            data = part['body']['data']
-            body = base64.urlsafe_b64decode(data).decode('utf-8')
-            email_data['body'] = body
-    else:
+        email_data['body'] = find_body_parts(payload['parts'])
+    elif 'body' in payload and 'data' in payload['body']:
         data = payload['body']['data']
-        body = base64.urlsafe_b64decode(data).decode('utf-8')
-        email_data['body'] = body
+        email_data['body'] = base64.urlsafe_b64decode(data).decode('utf-8')
 
     return email_data
 
