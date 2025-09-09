@@ -36,12 +36,12 @@ def main():
             accounts = cur.fetchall()
             
             if not accounts:
-                logging.info("No connected accounts found. Please run app.py to connect an account.")
+                print("No connected accounts found. Please run app.py to connect an account.")
                 time.sleep(60)
                 continue
 
             for account in accounts:
-                logging.info(f"\nChecking account: {account['user_email']}")
+                print(f"\nChecking account: {account['user_email']}")
                 
                 try:
                     # Manually create credentials object from DB data
@@ -59,7 +59,7 @@ def main():
                     # Refresh if expired and update DB
                     if creds.expired and creds.refresh_token:
                         from google.auth.transport.requests import Request
-                        logging.info("Refreshing token...")
+                        print("Refreshing token...")
                         creds.refresh(Request())
                         # Save the updated credentials back to the database
                         cur.execute(
@@ -70,32 +70,32 @@ def main():
                             (creds.token, creds.expiry, account['user_email'])
                         )
                         conn.commit()
-                        logging.info("Token refreshed and saved.")
+                        print("Token refreshed and saved.")
 
 
                     service = gmail_service.build('gmail', 'v1', credentials=creds)
                     unread_messages = gmail_service.fetch_unread_emails(service)
                     
                     if not unread_messages:
-                        logging.info("No new emails.")
+                        print("No new emails.")
                     else:
-                        logging.info(f"Found {len(unread_messages)} new email(s).")
+                        print(f"Found {len(unread_messages)} new email(s).")
                         for message_summary in unread_messages:
                             # Pass a dictionary-like object for the account
                             processing_service.process_email(dict(account), message_summary)
 
                 except Exception as e:
-                    logging.error(f"An error occurred while processing account {account['user_email']}: {e}")
-
+                    print(f"An error occurred while processing account {account['user_email']}: {e}")
+            
             cur.close()
             
         except (Exception, psycopg2.DatabaseError) as error:
-            logging.error(f"Database error: {error}")
+            print(f"Database error: {error}")
         finally:
             if conn is not None:
                 conn.close()
-
-        logging.info("Waiting for 30 seconds before next check...")
+        
+        print("\nWaiting for 30 seconds before next check...")
         time.sleep(30)
 
 if __name__ == '__main__':

@@ -5,13 +5,17 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- Use environment variables for database connection ---
-DB_NAME = os.getenv("DB_NAME", "email_agent")
-DB_USER = os.getenv("DB_USER", "postgres")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "mysecretpassword")
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = os.getenv("DB_PORT", "5432")
+DB_NAME = os.getenv("DB_NAME")
+DB_USER = os.getenv("DB_USER")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_HOST = os.getenv("DB_HOST")
+DB_PORT = os.getenv("DB_PORT")
 
 def get_db_connection():
+    # Check if all variables are set
+    if not all([DB_NAME, DB_USER, DB_PASSWORD, DB_HOST, DB_PORT]):
+        raise ValueError("One or more database environment variables are not set.")
+    
     conn = psycopg2.connect(
         dbname=DB_NAME,
         user=DB_USER,

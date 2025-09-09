@@ -14,3 +14,6 @@ client_secret.json
 
 # Logs
 *.log
+
+# others
+postgres_data/
