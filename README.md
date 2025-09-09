@@ -89,8 +89,8 @@ graph TD
 
 1.  **Clone the repository**:
     ```bash
-    git clone https://github.com/ioa2205/email-support-agent-1.git
-    cd email-support-agent-1
+    git clone https://github.com/ioa2205/email-support-agent.git
+    cd email-support-agent
     ```
 2.  **Create a virtual environment and activate it**:
     ```bash
