@@ -18,3 +18,5 @@ langchain-community
 
 # Environment variable management
 python-dotenv
+
+cryptography

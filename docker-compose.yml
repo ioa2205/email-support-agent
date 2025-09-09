@@ -5,30 +5,32 @@ services:
     image: postgres:latest
     container_name: pg-email-agent-compose
     environment:
-      - POSTGRES_PASSWORD=mysecretpassword
-      - POSTGRES_DB=email_agent
+      # These values are read automatically from the .env file
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+      - POSTGRES_DB=${DB_NAME}
     ports:
-      - "5432:5432" # Expose port 5432 to the host machine for external connections
+      - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data # Persist database data
+      - postgres_data:/var/lib/postgresql/data
 
-  # The Python Application Service
   app:
-    build: . # Build the image from the Dockerfile in the current directory
+    build: .
     container_name: python-email-agent
     depends_on:
-      - db # This service will not start until the 'db' service is ready
+      - db
     volumes:
-      - .:/app # Mount the current directory into the container's /app directory
+      - .:/app
     environment:
-      # Pass database connection details as environment variables
-      - DB_NAME=email_agent
-      - DB_USER=postgres
-      - DB_PASSWORD=mysecretpassword
-      - DB_HOST=db # IMPORTANT: The hostname is the service name ('db')
-      - DB_PORT=5432
-    # Keep the container running even if the script exits, useful for debugging
+      # These values are also read automatically from the .env file
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - DB_HOST=db # We keep this hardcoded, as it's specific to the Docker network
+      - DB_PORT=${DB_PORT}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
     restart: on-failure
 
 volumes:
-  postgres_data: # Define the named volume for data persistence
+  postgres_data:

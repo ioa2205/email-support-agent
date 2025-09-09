@@ -2,6 +2,7 @@ import os
 from flask import Flask, redirect, request, session, url_for
 from google_auth_oauthlib.flow import Flow
 from database import get_db_connection
+from security import encrypt_token_to_str
 
 app = Flask(__name__)
 # In production, use a more secure secret key and manage it properly
@@ -122,6 +123,8 @@ def oauth2callback():
     flow.fetch_token(authorization_response=request.url)
     credentials = flow.credentials
     
+    encrypted_access_token = encrypt_token_to_str(credentials.token)
+    encrypted_refresh_token = encrypt_token_to_str(credentials.refresh_token)
     # Get user's email address
     # This requires an authorized session, so we create one from the flow
     user_info_service = flow.authorized_session()
@@ -131,8 +134,6 @@ def oauth2callback():
     # Save credentials to the database
     conn = get_db_connection()
     cur = conn.cursor()
-    
-    # Use UPSERT to handle both new and existing accounts (re-connecting updates tokens)
     cur.execute(
         """
         INSERT INTO connected_accounts (user_email, access_token, refresh_token, token_expiry)
@@ -142,9 +143,9 @@ def oauth2callback():
             refresh_token = EXCLUDED.refresh_token,
             token_expiry = EXCLUDED.token_expiry;
         """,
-        (user_email, credentials.token, credentials.refresh_token, credentials.expiry)
+        # Pass the NEW encrypted variables to the database
+        (user_email, encrypted_access_token, encrypted_refresh_token, credentials.expiry)
     )
-    
     conn.commit()
     cur.close()
     conn.close()

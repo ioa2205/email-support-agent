@@ -7,6 +7,8 @@ import processing_service
 from google.oauth2.credentials import Credentials
 import os
 import psycopg2.extras
+import traceback
+from security import encrypt_token_to_str, decrypt_token_from_str
 
 def main():
     """Main loop to fetch and process emails."""
@@ -45,9 +47,11 @@ def main():
                 
                 try:
                     # Manually create credentials object from DB data
+                    decrypted_access_token = decrypt_token_from_str(account['access_token'])
+                    decrypted_refresh_token = decrypt_token_from_str(account['refresh_token'])
                     creds_info = {
-                        'token': account['access_token'],
-                        'refresh_token': account['refresh_token'],
+                        'token': decrypted_access_token,
+                        'refresh_token': decrypted_refresh_token,
                         'token_uri': 'https://oauth2.googleapis.com/token',
                         'client_id': secrets['client_id'],
                         'client_secret': secrets['client_secret'],
@@ -62,12 +66,15 @@ def main():
                         logging.info("Refreshing token...")
                         creds.refresh(Request())
                         # Save the updated credentials back to the database
+
+                        encrypted_new_token = encrypt_token_to_str(creds.token)
+
                         cur.execute(
                             """
                             UPDATE connected_accounts SET access_token = %s, token_expiry = %s
                             WHERE user_email = %s
                             """,
-                            (creds.token, creds.expiry, account['user_email'])
+                            (encrypted_new_token, creds.expiry, account['user_email'])
                         )
                         conn.commit()
                         logging.info("Token refreshed and saved.")
@@ -85,7 +92,8 @@ def main():
                             processing_service.process_email(dict(account), message_summary)
 
                 except Exception as e:
-                    logging.error(f"An error occurred while processing account {account['user_email']}: {e}")
+                    logging.error(f"An error occurred while processing account {account['user_email']}:")
+                    logging.error(traceback.format_exc())
 
             cur.close()
             
