@@ -2,13 +2,6 @@
 
 An automated email agent that uses AI to categorize, process, and respond to customer support emails. The agent can answer questions using a Retrieval-Augmented Generation (RAG) system, handle stateful refund requests, and classify other emails for manual review.
 
-## Motivation
-
-In many businesses, customer support teams are overwhelmed by a high volume of repetitive emails. This project aims to solve that problem by creating an intelligent agent that can:
-- Instantly answer common questions using a knowledge base.
-- Handle the initial steps of a refund process automatically.
-- Filter out noise, allowing human agents to focus on complex, high-value customer interactions.
-
 ## Features
 
 -   **Automatic Email Categorization**: Classifies incoming emails into `Question`, `Refund`, or `Other`.
@@ -34,35 +27,30 @@ The system consists of a web application for account management and a background
 
 ```mermaid
 graph TD
-    subgraph User Interaction
-        A[Client App UI] -- Connect Account --> B(Authentication Service);
-        B -- OAuth 2.0 --> G(Google Gmail);
-        G -- Tokens --> B;
-        B -- Store Encrypted Tokens --> DB[(PostgreSQL)];
+    subgraph "1. Account Setup (User Interaction)"
+        A[Client App UI] -- User Connects Account --> B(Authentication Service);
+        B -- Obtains Permission via OAuth 2.0 --> G(Google Gmail);
+        G -- Returns Secure Tokens --> B;
+        B -- Stores Encrypted Tokens --> DB[(PostgreSQL DB)];
     end
 
-    subgraph Backend Processing
-        W[Email Listener Worker] -- Every N minutes --> DB;
-        W -- Fetches New Emails --> G;
-        G -- Raw Email --> W;
-        W -- Sends Email to --> P(Processing Pipeline);
+    subgraph "2. Automated Processing (Backend)"
+        Listener[Email Listener Worker] -- Fetches New Email --> G;
+        Listener -- Sends to --> Classifier;
+        
+        Classifier[AI Classifier] --> Decision{What is the Category?};
 
-        P -- 1. Preprocess --> C(Classifier / LLM);
-        C -- Categorizes as --> R{Category?};
+        Decision -- "Question" --> QuestionHandler[Question Handler];
+        Decision -- "Refund" --> RefundHandler[Refund Handler];
+        Decision -- "Other" --> OtherHandler[Other Handler];
 
-        R -- "Question" --> QH(Question Handler);
-        QH -- RAG --> ES(Email Sender);
-        QH -- If cannot answer --> Unhandled(Save as Unhandled);
+        QuestionHandler -- Performs RAG using Knowledge Base --> SendReply[Send Reply via Gmail];
+        QuestionHandler -- If cannot answer --> LogToDB[Log Unhandled Email to DB];
+        
+        RefundHandler -- Interacts with Order Table --> DB;
+        RefundHandler --> SendReply;
 
-        R -- "Refund" --> RH(Refund Handler);
-        RH -- Interacts with --> DB;
-        RH -- Sends Reply --> ES;
-
-        R -- "Other" --> OH(Other Handler);
-        OH -- Assesses Importance --> Unhandled;
-
-        Unhandled -- Save to --> DB;
-        ES -- Sends via Gmail API --> G;
+        OtherHandler -- Assesses Importance --> LogToDB;
     end
 ```
 
