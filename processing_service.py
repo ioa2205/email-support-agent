@@ -66,7 +66,6 @@ def handle_refund(service, email):
                     (customer_email, order_id, email['body'])
                 )
                 conn.commit()
-                # Use logging.warning for events that might need human review
                 logging.warning(f"Logged repeated invalid order ID attempt from {customer_email} for ID '{order_id}'.") # <-- CORRECTED
             else:
                 reply_body = f"Hello,\n\nWe could not find an order with the ID '{order_id}'. Please double-check the ID and reply to this email.\n\nThank you,\nSupport Agent"
@@ -77,7 +76,7 @@ def handle_refund(service, email):
 
 def handle_other(service, email):
     """Handles all other emails by assessing importance and saving."""
-    logging.info(f"Handling OTHER from {email['from']}") # <-- CORRECTED
+    logging.info(f"Handling OTHER from {email['from']}") 
     importance = llm_service.assess_importance(email['body'])
     conn = get_db_connection()
     cur = conn.cursor()
@@ -99,7 +98,6 @@ def process_email(account, email_summary):
     clean_body = gmail_service.clean_email_body(email_details['body'])
     category = llm_service.categorize_email(clean_body)
 
-    # Logging each piece of info on a new line makes the log file easier to read
     logging.info("--- New Email Received ---")
     logging.info(f"  From: {email_details['from']}")
     logging.info(f"  Subject: {email_details['subject']}")
@@ -110,7 +108,7 @@ def process_email(account, email_summary):
         handle_question(service, email_details)
     elif category == "Refund":
         handle_refund(service, email_details)
-    else: # Other
+    else:
         handle_other(service, email_details)
         
     gmail_service.mark_as_read(service, email_details['id'])

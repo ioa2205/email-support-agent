@@ -17,7 +17,6 @@ SCOPES = [
     'https://www.googleapis.com/auth/userinfo.email' 
 ]
 
-# --- MODIFIED SECTION ---
 @app.route('/')
 def index():
     """
@@ -79,7 +78,6 @@ def index():
     """
     return html
 
-# --- NEW SECTION ---
 @app.route('/disconnect', methods=['POST'])
 def disconnect():
     """

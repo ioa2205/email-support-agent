@@ -14,8 +14,8 @@ def main():
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
         handlers=[
-            logging.FileHandler("agent.log"), # Log to a file
-            logging.StreamHandler()          # Also log to the console
+            logging.FileHandler("agent.log"), 
+            logging.StreamHandler()         
         ]
     )
     logging.info("Starting email listener...")

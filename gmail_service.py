@@ -1,10 +1,9 @@
 import base64
-import os.path
+import os
 import re
 from email.mime.text import MIMEText
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
-from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
 
 CLIENT_SECRETS_FILE = 'client_secret.json'
