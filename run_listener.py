@@ -67,10 +67,6 @@ def main():
                         logging.info("Refreshing token...")
                         creds.refresh(Request())
                         
-                        # --- THIS IS THE DEFINITIVE FIX ---
-                        # After refreshing, the 'creds' object might have a new refresh token.
-                        # We must save BOTH the new access token AND the new refresh token.
-                        
                         encrypted_new_access_token = encrypt_token_to_str(creds.token)
                         # The refresh token might be None if one wasn't issued, so we keep the old one as a fallback.
                         new_refresh_token = creds.refresh_token or decrypted_refresh_token
@@ -114,8 +110,8 @@ def main():
             if conn is not None:
                 conn.close()
 
-        logging.info("Waiting for 30 seconds before next check...")
-        time.sleep(30)
+        logging.info("Waiting for 60 seconds before next check...")
+        time.sleep(60)
 
 if __name__ == '__main__':
     main()
